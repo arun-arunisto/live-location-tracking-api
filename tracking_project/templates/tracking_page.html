@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tracking Page</title>
+</head>
+<body>
+    
+    <h1>Real Time Tracking</h1>
+    <h2>User: {{ user_name }}</h2>
+    <div id="tracking-data"></div>
+
+    {% comment %} Get data for target_name {% endcomment %}
+    {{ target_name | json_script:"target_name"}}
+    <!--- script>
+        const trackingSocket = new WebSocket(
+            'ws://' + window.location.host + '/ws/tracking/'
+        );
+
+        trackingSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            document.getElementById('tracking-data').innerText = data.message;
+        };
+
+        trackingSocket.onclose = function(e) {
+            console.error('WebSocket closed')
+        }
+    </script --->
+    <!-- script>
+        let latitude = "";
+        let longitude = "";
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                latitude = position.coords.latitude;
+                longitude = position.coords.longitude;
+                
+                if (latitude !== '' && longitude !== '') {
+                    trackingSocket.send(JSON.stringify({
+                        'latitude': latitude,
+                        'longitude': longitude,
+                        'target_user': user_name
+                    }));
+                } else {
+                    latitude = "";
+                    longitude = "";
+                };
+                console.log("latitude:", latitude, "longitude:", longitude);
+            }, function(error) {
+                console.log('Error getting the user location:', error);
+            });
+        } else {
+            console.log('Geolocation is not supported by this browser.');
+        }
+        
+        const user_name = JSON.parse(document.getElementById("user_name").textContent);
+        console.log("target_name:", user_name);
+
+        const trackingSocket = new WebSocket(
+            'ws://'+window.location.host+'/ws/tracking/'+user_name+'/'
+        );
+
+        trackingSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            console.log("latitude:", data.latitude, "longitude:", data.longitude, "username: ",data.user_name);
+        }
+    </script --->
+    <script>
+        let target_name = JSON.parse(document.getElementById("target_name").textContent);
+        let trackingSocket;
+        function connectWebsocket() {
+            trackingSocket = new WebSocket(
+                'ws://'+window.location.host+'/ws/tracking/'+target_name+'/'
+            );
+
+            
+            trackingSocket.onopen = function(e) {
+                console.log("Connection established");
+            };
+
+            trackingSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                
+            };
+        }
+
+        connectWebsocket();
+        setInterval(() => {
+            let latitude = "";
+            let longitude = "";
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    latitude = position.coords.latitude;
+                    longitude = position.coords.longitude;
+                    if (latitude !== '' && longitude !== '') {
+                        trackingSocket.send(JSON.stringify ({
+                            "latitude": latitude,
+                            "longitude": longitude,
+                            "target_name": target_name
+                        }));
+                        latitude = "";
+                        longitude = "";
+                    }
+                }, function(error) {
+                    console.log("Error getting the user location:", error);
+                });
+            } else {
+                console.log("Geolocation is not supported by this browser.");
+            }
+        }, 1000);
+
+        window.addEventListener("beforeunload", function() {
+            trackingSocket.close = function(e){
+                console.log("Connection closed");
+            };
+        });
+    </script>
+</body>
+</html>

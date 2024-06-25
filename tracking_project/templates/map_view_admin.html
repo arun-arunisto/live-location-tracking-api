@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Tracking Admin View</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    {% if status %}
+        <h2>Not accepted!</h2>
+    {% else %}
+    <div id="map"></div>
+    {% comment %} Getting data for tracking {% endcomment %}
+    {{ admin_option_id | json_script:"admin_option_id" }}
+    {{ target_user_id | json_script:"target_user_id" }}
+    {{ destination_point_id | json_script:"destination_point_id" }} 
+    {{ starting_latitude | json_script:"starting_latitude"}}
+    {{ starting_longitude | json_script:"starting_longitude" }}
+    {{ destination_latitude | json_script:"destination_latitude" }}
+    {{ destination_longitude | json_script:"destination_longitude" }}
+    {{ track_status | json_script:"track_status" }}
+    <script>
+        let admin_option_id = JSON.parse(document.getElementById("admin_option_id").textContent);
+        let target_user_id = JSON.parse(document.getElementById("target_user_id").textContent);
+        let destination_point_id = JSON.parse(document.getElementById("destination_point_id").textContent);
+        let starting_latitude = JSON.parse(document.getElementById("starting_latitude").textContent);
+        let starting_longitude = JSON.parse(document.getElementById("starting_longitude").textContent);
+        console.log(starting_latitude, starting_longitude);
+        let destination_latitude = JSON.parse(document.getElementById("destination_latitude").textContent);
+        let destination_longitude = JSON.parse(document.getElementById("destination_longitude").textContent);
+        let trackingSocket;
+        let map;
+        let start_lat_lan = [starting_latitude, starting_longitude];
+        let endPoint = [destination_latitude, destination_longitude];
+        let startMarker;
+        let endMarker;
+        let userMarker;
+        let polyLine;
+        let track_status = JSON.parse(document.getElementById("track_status").textContent);
+
+        const startIcon = L.icon({
+            iconUrl: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+
+        const endIcon = L.icon({
+            iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+
+        const userIcon = L.icon({
+            iconUrl: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+        
+        function connectWebsocket() {
+            trackingSocket = new WebSocket(
+                'wss://'+window.location.host+'/ws/admin/'+admin_option_id+'/'
+            )
+
+            trackingSocket.onopen = function(e) {
+                console.log("Websocket Connection established");
+                trackingSocket.send(JSON.stringify({
+                    "target_user_id": target_user_id,
+                    "destination_point_id": destination_point_id,
+                }));
+                console.log("Data from the server:");
+            };
+
+            trackingSocket.onmessage = function(e) {
+                let data = JSON.parse(e.data);
+                //console.log("On message data:", data, "latitude:", data.latitude, "longitude:", data.longitude);
+                track_status = data.status;
+                if (data.latitude !== undefined && data.longitude !== undefined) {
+                    mapFunction(data.latitude, data.longitude);
+                    console.log("On message data:", data, "latitude:", data.latitude, "longitude:", data.longitude);
+                }
+            };
+
+            trackingSocket.onclose = function(e) {
+                console.log("Websocket connection closed. Attempting to reconnect...");
+                setTimeout(connectWebsocket, 5000); // Attempt to reconnect every 5 seconds
+            };
+
+            trackingSocket.onerror = function(error) {
+                console.log("Websocket error:", error)
+            };
+        }
+
+        function mapIntialize(latitude, longitude) {
+            map = L.map('map').setView([latitude, longitude], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 25,
+            }).addTo(map);
+            L.marker(start_lat_lan, {icon: startIcon}).addTo(map).bindPopup("Starting Point");
+            userMarker = L.marker([latitude, longitude], {icon: userIcon}).addTo(map).bindPopup(track_status);
+            L.marker(endPoint, {icon: endIcon}).addTo(map).bindPopup("Destination");
+            polyLine = L.polyline([[latitude, longitude], endPoint], {"color":"red"}).addTo(map);
+            
+        }
+        function mapFunction(latitude, longitude) {
+            if (!map) {
+                mapIntialize(latitude, longitude);
+            } else {
+                userMarker.setLatLng([latitude, longitude]);
+                polyLine = L.polyline([[latitude, longitude], endPoint], {"color":"red"}).addTo(map);
+                map.setView([latitude, longitude], 15);
+            }
+        }
+
+        console.log("Websocket logs");
+        // connectWebsocket();
+        setInterval(connectWebsocket, 5000);
+        window.addEventListener("beforeunload", function() {
+            if (trackingSocket) {
+                trackingSocket.onclose() = function(){
+                    console.log("Websocket connection closed");
+                };
+                trackingSocket.close();
+            }
+        })
+    </script>
+    {% endif %}
+</body>
+</html>
