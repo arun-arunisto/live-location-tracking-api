@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tracking</title>
+</head>
+<body>
+    <h1>Real-Time Tracking</h1>
+    <h2>{{ target_name }}</h2>
+    <div id="tracking-data"></div>
+    {% comment %} Get data for target_name {% endcomment %}
+    {{ target_name | json_script:"target_name"}}
+    <script>
+        let target_name = JSON.parse(document.getElementById("target_name").textContent);
+        let trackingSocket;
+
+        function connectWebSocket() {
+            trackingSocket = new WebSocket(
+                'ws://'+window.location.host+'/ws/tracking/'+target_name+'/'
+            );
+
+            trackingSocket.onopen = function(e) {
+                console.log("WebSocket connection established");
+            };
+
+            trackingSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+            };
+
+            trackingSocket.onclose = function(e) {
+                console.log("WebSocket connection closed. Attempting to reconnect...");
+                setTimeout(connectWebSocket, 5000); // Attempt to reconnect every 5 seconds
+            };
+
+            trackingSocket.onerror = function(error) {
+                console.log("WebSocket error:", error);
+            };
+        }
+
+        function sendLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+
+                    if (latitude !== '' && longitude !== '' && trackingSocket.readyState === WebSocket.OPEN) {
+                        trackingSocket.send(JSON.stringify({
+                            "latitude": latitude,
+                            "longitude": longitude,
+                            "target_name": target_name
+                        }));
+                        console.log("Sent latitude:", latitude, "longitude:", longitude);
+                    } else {
+                        console.log("WebSocket is not open. ReadyState:", trackingSocket.readyState);
+                    }
+                }, function(error) {
+                    console.log("Error getting the user location:", error);
+                });
+            } else {
+                console.log("Geolocation is not supported by this browser.");
+            }
+        }
+
+        console.log("websocket open:", WebSocket.OPEN)
+        // Connect WebSocket when the page loads
+        connectWebSocket();
+
+        // Update location every 0.5 seconds
+        setInterval(sendLocation, 500);
+
+        window.addEventListener("beforeunload", function() {
+            if (trackingSocket) {
+                trackingSocket.onclose = function() {
+                    console.log("WebSocket connection closed");
+                };
+                trackingSocket.close();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <title>Live Tracking Map View</title>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+        <style>
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            #map {
+                position:absolute;
+                top: 0;
+                bottom: 0;
+                width: 100%;
+            }
+        </style>
+    </head>
+    <div id="map"></div>
+    {% comment %} Getting data for target_name {% endcomment %}
+    {{ target_name | json_script:"target_name"}}
+    {{destination_point | json_script:"destination_point"}}
+    {{status | json_script:"status"}}
+    <script>
+        let target_name = JSON.parse(document.getElementById("target_name").textContent);
+        let trackingSocket;
+        let map;
+        let start_lat_lan;
+        let startPoint;
+        let endPoint = JSON.parse(document.getElementById("destination_point").textContent);
+        let endMarker;
+        let polyLine;
+        let userMarker;
+        let track_status = JSON.parse(document.getElementById("status").textContent);
+        let path = [];
+
+        const startIcon = L.icon({
+            iconUrl: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+
+        const endIcon = L.icon({
+            iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+
+        const userIcon = L.icon({
+            iconUrl: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+
+
+        function connectWebsocket() {
+            trackingSocket = new WebSocket(
+                'wss://'+window.location.host+"/ws/tracking/"+target_name+"/"
+            )
+
+            trackingSocket.onopen = function(e) {
+                console.log("Websocket Connection established");
+                trackingSocket.onmessage = function(e) {
+                    const data = JSON.parse(e.data);
+                    console.log("On message data:", data);
+                    track_status = data.track_status;
+                };    
+            };
+
+            trackingSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                console.log("On message data:", data);
+
+            };
+
+            trackingSocket.onclose = function(e) {
+                console.log("Websocket connection closed. Attempting to reconnect...");
+                setTimeout(connectWebsocket, 5000); // Attempt to reconnect every 5 seconds
+            };
+
+            trackingSocket.onerror = function(error) {
+                console.log("Websocket error:", error)
+            };
+        }
+
+        function initializeMap(latitude, longitude) {
+            map = L.map('map').setView([latitude, longitude], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 25,
+            }).addTo(map);
+            start_lat_lan = [latitude, longitude];
+            L.marker(start_lat_lan, {icon: startIcon}).addTo(map).bindPopup("Start point");
+            userMarker = L.marker([latitude, longitude], {icon: userIcon}).addTo(map).bindPopup(track_status);
+            L.marker(endPoint, {icon: endIcon}).addTo(map).bindPopup("Destination");
+            polyLine = L.polyline([[latitude, longitude], endPoint], {'color':'red'}).addTo(map);
+        }
+
+        function updateLocation(latitude, longitude) {
+            if (!map) {
+                initializeMap(latitude, longitude);
+            } else {
+                userMarker.setLatLng([latitude, longitude]);
+                polyLine = L.polyline([[latitude, longitude], endPoint], {'color':'red'}).addTo(map);
+                map.setView([latitude, longitude], 15);
+            }
+
+            if (trackingSocket.readyState === WebSocket.OPEN) {
+                trackingSocket.send(JSON.stringify({
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "target_name": target_name,
+                    "track_status": track_status
+                }));
+            } else {
+                console.log("Websocket is not open. ReadyState:", trackingSocket.readyState);
+            }
+        }
+        
+        function sendLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+                    updateLocation(latitude, longitude);
+                }, function(error) {
+                    console.log("Error getting the user location:", error);
+                });
+            } else {
+                console.log("Geolocation is not supported by this browser.");
+            }
+        }
+
+        console.log("websocket open:", WebSocket.OPEN);
+        connectWebsocket();
+        setInterval(sendLocation, 500);
+        window.addEventListener('beforeunload', function() {
+            if (trackingSocket) {
+                trackingSocket.onclose = function() {
+                    console.log("Websocket connection closed");
+                };
+                trackingSocket.close();
+            }
+        });
+
+        /*
+        const map = L.map('map').setView([12.916365, 77.599600], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        const startPoint = [12.916365, 77.599600];
+        const endPoint = [12.9732913, 77.6404672];
+        const endMarker = L.marker(endPoint).addTo(map).bindPopup("End point");
+        const polyLine = L.polyline([startPoint, endPoint], {'color':'red'}).addTo(map);
+        const userMarker = L.marker(startPoint).addTo(map).bindPopup('Current Location');
+        */
+
+    </script>
+</html>
