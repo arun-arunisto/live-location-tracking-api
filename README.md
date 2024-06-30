@@ -1,5 +1,3 @@
-### GitHub README
-
 # Live Location Tracking API
 
 This project is a live location tracking system similar to those used by Swiggy and Zomato. It is built using Django and Django REST Framework for the backend, and OpenStreetMap API for the frontend map. The system utilizes JavaScript for collecting latitude and longitude data, and employs Channels and WebSockets to transfer this data from the frontend to the backend.
