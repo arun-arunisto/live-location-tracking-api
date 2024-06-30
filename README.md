@@ -65,7 +65,3 @@ This project is a live location tracking system similar to those used by Swiggy 
 ## Contributing
 
 Contributions are welcome! Please submit a pull request or open an issue to discuss what you would like to change.
-
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
