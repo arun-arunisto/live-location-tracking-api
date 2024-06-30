@@ -16,7 +16,7 @@ This project is a live location tracking system similar to those used by Swiggy 
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/arun-arunisto/live-location-tracking-api.git
-   cd tracking-project
+   cd tracking_project
    ```
 
 2. **Install dependencies:**
